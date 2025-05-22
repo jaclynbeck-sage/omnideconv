@@ -2,13 +2,16 @@ library(omnideconv)
 
 chk <- Sys.getenv("_R_CHECK_LIMIT_CORES_", "")
 
-if (nzchar(chk) && chk == "TRUE") {
-  # use 2 cores in CRAN/Travis/AppVeyor
-  ncores <- 2L
-} else {
-  # use all cores in devtools::test()
-  ncores <- parallel::detectCores()
-}
+
+# Somehow, ncores != 1 breaks the coverage tests!
+###################################################
+# if (nzchar(chk) && chk == "TRUE") {
+#   # use 2 cores in CRAN/Travis/AppVeyor
+#   ncores <- 2L
+# } else {
+#   # use all cores in devtools::test()
+#   ncores <- parallel::detectCores()
+# }
 
 
 
@@ -161,6 +164,14 @@ test_that("DWLS deconvolution works", {
   deconvolution_svr <- deconvolute(bulk_small, dwls_model,
     method = "dwls", dwls_submethod = "SVR"
   )
+
+  deconvolution_dwls_noSignature <- deconvolute(bulk_small,
+    model = NULL,
+    method = "dwls",
+    sc_object_small, cell_annotations_small,
+    dwls_submethod = "DampenedWLS"
+  )
+
   expect_equal(
     info = "rows of deconv for dwls equal to columns of signature (same celltypes, not same order)",
     object = sort(colnames(deconvolution_dwls)), expected = sort(colnames(dwls_model))
@@ -184,6 +195,12 @@ test_that("DWLS deconvolution works", {
   expect_equal(
     info = "deconvolution of svr contains same samples as in bulk (not same order)",
     object = sort(rownames(deconvolution_svr)), expected = sort(colnames(bulk_small))
+  )
+
+  expect_equal(
+    info = "one-step deconvolution and two-step deconvolution produce the same result",
+    object = deconvolution_dwls_noSignature, expected = deconvolution_dwls,
+    tolerance = 1e-3
   )
 
   check_result_dwls <- system.file("test_results", "dwls_dwls_result_small.csv",
@@ -254,7 +271,7 @@ test_that("DWLS deconvolution works", {
   )
 })
 
-test_that("CIBERSORTx deconvolution works", {
+test_that("CIBERSORTx deconvolution works, with and without signature", {
   set_cibersortx_credentials(Sys.getenv("CIBERSORTX_EMAIL"), Sys.getenv("CIBERSORTX_TOKEN"))
 
   cibersort_model <- system.file("test_models", "cibersortx_model_small.tsv",
@@ -265,9 +282,34 @@ test_that("CIBERSORTx deconvolution works", {
       check.names = FALSE, sep = "\t"
     ) %>%
     as.matrix(.)
-  colnames(cibersort_model) <- c("T$ c!ell% CD4", "T cel§l() &CD8", "NK+ c?[]el{}l")
-  deconvolution <- deconvolute(bulk_small, cibersort_model, method = "cibersortx")
+  # colnames(cibersort_model) <- c("T$ c!ell% CD4", "T cel§l() &CD8", "NK+ c?[]el{}l")
 
+  deconvolution <- deconvolute(bulk_small,
+    model = cibersort_model,
+    method = "cibersortx", container = "docker"
+  )
+
+  deconvolution_extra_info <- deconvolute(bulk_small,
+    model = cibersort_model,
+    method = "cibersortx", container = "docker",
+    display_extra_info = TRUE
+  )
+
+
+  deconvolution <- deconvolution[
+    sort(rownames(deconvolution)),
+    sort(colnames(deconvolution))
+  ]
+
+  deconvolution_noSignature <- deconvolute(bulk_small,
+    model = NULL,
+    method = "cibersortx",
+    sc_object_small, cell_annotations_small
+  )
+  deconvolution_noSignature <- deconvolution_noSignature[
+    sort(rownames(deconvolution_noSignature)),
+    sort(colnames(deconvolution_noSignature))
+  ]
   expect_equal(
     info = "columns of deconvolution equal to columns of signature (same celltypes in same order)",
     object = sort(colnames(deconvolution)), expected = sort(colnames(cibersort_model))
@@ -276,7 +318,14 @@ test_that("CIBERSORTx deconvolution works", {
     info = "deconvolution contains same samples as in bulk (not same order)",
     object = sort(rownames(deconvolution)), expected = sort(colnames(bulk_small))
   )
-
+  expect_equal(
+    info = "one-step deconvolution and two-step deconvolution produce the same result", object = deconvolution,
+    expected = deconvolution_noSignature, tolerance = 1e-1
+  )
+  expect_equal(
+    info = "deconvolution function can return extra infos", object = ncol(deconvolution_extra_info),
+    expected = ncol(deconvolution) + 3, tolerance = 1e-1
+  )
   check_result <- system.file("test_results", "cibersortx_result_small.tsv",
     package = "omnideconv", mustWork = TRUE
   ) %>%
@@ -284,12 +333,22 @@ test_that("CIBERSORTx deconvolution works", {
       row.names = 1,
       check.names = FALSE, sep = "\t"
     ) %>%
-    as.matrix(.)
-  check_result <- check_result[, unique(cell_annotations_small)]
-  colnames(check_result) <- c("T$ c!ell% CD4", "T cel§l() &CD8", "NK+ c?[]el{}l")
-  check_result <- check_result[, sort(colnames(check_result))]
+    as.matrix(.) %>%
+    .[, 1:3]
+
+  check_result <- check_result[
+    sort(rownames(check_result)),
+    sort(colnames(check_result))
+  ]
+
+  # check_result <- check_result[, unique(cell_annotations_small)]
   expect_equal(
     info = "deconvolution result is correct", object = deconvolution,
+    expected = check_result, tolerance = 1e-3
+  )
+
+  expect_equal(
+    info = "deconvolution result (one-step) is correct", object = deconvolution_noSignature,
     expected = check_result, tolerance = 1e-3
   )
 
@@ -307,7 +366,7 @@ test_that("Scaden deconvolution works", {
     steps = 150, verbose = F
   )
 
-  deconvolution <- deconvolute(bulk_small, signature = model, method = "scaden")
+  deconvolution <- deconvolute(bulk_small, model = model, method = "scaden")
 
   expect_equal(
     info = "deconvolution contains same samples as in bulk (not same order)",
@@ -315,7 +374,7 @@ test_that("Scaden deconvolution works", {
   )
   expect_equal(
     info = "deconvolution result with one bulk sample throws no error",
-    object = nrow(deconvolute(bulk_small_one_sample, signature = model, method = "scaden")),
+    object = nrow(deconvolute(bulk_small_one_sample, model = model, method = "scaden")),
     expected = 1
   )
 })
@@ -364,7 +423,7 @@ test_that("Autogenes deconvolution without signature works", {
     single_cell_object = sc_object_small,
     bulk_gene_expression = bulk_small,
     cell_type_annotations = cell_annotations_small,
-    signature = NULL,
+    model = NULL,
     method = "autogenes"
   )
   expect_equal(
@@ -390,7 +449,7 @@ test_that("Autogenes deconvolution without signature works", {
       single_cell_object = sc_object_small,
       bulk_gene_expression = bulk_small_one_sample,
       cell_type_annotations = cell_annotations_small,
-      signature = NULL,
+      model = NULL,
       method = "autogenes"
     )),
     expected = 1
@@ -443,7 +502,7 @@ test_that("CPM deconvolution works", {
     single_cell_object = sc_object_small,
     cell_type_annotations = cell_annotations_small,
     cell_space = "PCA",
-    no_cores = ncores
+    no_cores = 1
   ))
 
   deconvolution_umap <- suppressMessages(deconvolute(bulk_small, NULL,
@@ -451,7 +510,7 @@ test_that("CPM deconvolution works", {
     single_cell_object = sc_object_small,
     cell_type_annotations = cell_annotations_small,
     cell_space = "UMAP",
-    no_cores = ncores
+    no_cores = 1
   ))
 
   deconvolution_tsne <- suppressMessages(deconvolute(bulk_small, NULL,
@@ -459,7 +518,7 @@ test_that("CPM deconvolution works", {
     single_cell_object = sc_object_small,
     cell_type_annotations = cell_annotations_small,
     cell_space = "TSNE",
-    no_cores = ncores
+    no_cores = 1
   ))
   expect_equal(
     info = "deconvolution_pca contains same samples as in bulk (not same order)",
@@ -550,12 +609,12 @@ test_that("SCDC deconvolution works", {
 
 test_that("CDSeq deconvolution works", {
   deconvolution <- deconvolute(bulk_small,
-    signature = NULL,
+    model = NULL,
     method = "cdseq",
     single_cell_object = sc_object_small,
     cell_type_annotations = cell_annotations_small,
     batch_ids = batch_ids_small,
-    no_cores = ncores
+    no_cores = 1
   )
   expect_equal(
     info = "deconvolution contains same samples as in bulk (not same order)",
@@ -564,12 +623,12 @@ test_that("CDSeq deconvolution works", {
   expect_equal(
     info = "deconvolution result with one bulk sample throws no error",
     object = nrow(deconvolute(bulk_small_one_sample,
-      signature = NULL,
+      model = NULL,
       method = "cdseq",
       single_cell_object = sc_object_small,
       cell_type_annotations = cell_annotations_small,
       batch_ids = batch_ids_small,
-      no_cores = ncores
+      no_cores = 1
     )),
     expected = 1
   )

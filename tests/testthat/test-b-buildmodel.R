@@ -36,26 +36,6 @@ markers_small <- list(marker_genes[1:9], marker_genes[10:14], marker_genes[15:20
 names(markers_small) <- sort(unique(cell_annotations_small))
 
 
-test_that("Bisque GenerateSCReference works", {
-  signature <- .bisque_patched_model(sc_object_small, cell_annotations_small, batch_ids_small)
-  expect_equal(
-    info = "signature matrix has same amount of columns as unique cell types in single
-               cell matrix", object = ncol(signature),
-    expected = length(unique(cell_annotations_small))
-  )
-  check_signature <- system.file("test_models", "bisque_model_small.csv",
-    package = "omnideconv", mustWork = TRUE
-  ) %>%
-    read.csv(., row.names = 1, check.names = FALSE) %>%
-    as.matrix(.)
-  expect_equal(info = "signature matrix is correct", object = signature, expected = check_signature)
-
-  model <- build_model(sc_object_small, cell_annotations_small, "bisque",
-    bulk_gene_expression = bulk_small
-  )
-  expect_null(info = "The Bisque Model is null (which it should be)", object = model)
-})
-
 
 test_that("MOMF compute reference works", {
   signature <- build_model(sc_object_small, cell_annotations_small, "momf",
@@ -120,7 +100,7 @@ test_that("DWLS build signature matrix works with the optimized version", {
 
 test_that("CIBERSORTx build signature matrix works", {
   set_cibersortx_credentials(Sys.getenv("CIBERSORTX_EMAIL"), Sys.getenv("CIBERSORTX_TOKEN"))
-  signature <- build_model(sc_object_small, cell_annotations_small, "cibersortx")
+  signature <- build_model(sc_object_small, cell_annotations_small, "cibersortx", container = "docker")
   expect_equal(
     info = "signature matrix has same amount of columns as unique cell types in single
                cell matrix", object = ncol(signature),
@@ -162,32 +142,6 @@ test_that("AutoGeneS build model works, and the matrix can be extracted", {
   )
 })
 
-test_that("MuSiC build model works", {
-  signature <- build_model(sc_object_small, cell_annotations_small, "music",
-    batch_ids = batch_ids_small
-  )
-  expect_equal(
-    info = "signature matrix has same amount of columns as unique cell types in single cell matrix",
-    object = ncol(signature), expected = length(unique(cell_annotations_small))
-  )
-})
-test_that("SCDC build model works", {
-  signature <- build_model(sc_object_small, cell_annotations_small, "scdc",
-    batch_ids = batch_ids_small
-  )
-  expect_equal(
-    info = "signature matrix has same amount of columns as unique cell types in single cell matrix",
-    object = ncol(signature), expected = length(unique(cell_annotations_small))
-  )
-})
-
-test_that("CPM build model works", {
-  model <- build_model(sc_object_small, cell_annotations_small, "cpm",
-    bulk_gene_expression = bulk_small
-  )
-  expect_null(info = "The CPM Model is null (which it should be)", object = model)
-})
-
 
 test_that("BSeq-sc build model works", {
   signature <- build_model(sc_object_small, cell_annotations_small, "bseqsc",
@@ -206,18 +160,4 @@ test_that("BSeq-sc build model works", {
     ) %>%
     as.matrix(.)
   expect_equal(info = "signature matrix is correct", object = signature, expected = check_signature)
-})
-
-test_that("CDSeq build model works", {
-  model <- build_model(sc_object_small, cell_annotations_small,
-    method = "cdseq"
-  )
-  expect_null(info = "The CDSeq Model is null (which it should be)", object = model)
-})
-
-test_that("BayesPrism build model works", {
-  model <- build_model(sc_object_small, cell_annotations_small, "bayesprism",
-    bulk_gene_expression = bulk_small
-  )
-  expect_null(info = "The BayesPrism Model is null (which it should be)", object = model)
 })

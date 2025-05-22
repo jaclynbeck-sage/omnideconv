@@ -1,7 +1,7 @@
 #' Manage python dependencies
 #' according to: https://rstudio.github.io/reticulate/articles/python_dependencies.html#manual-configuration
 #'
-#'
+#' @name omnideconvstartup
 NULL
 
 .onLoad <- function(libname, pkgname) {
@@ -19,25 +19,41 @@ NULL
   # We ensure to have the r-reticulate env
   # if (!file.exists(reticulate::conda_python("r-reticulate"))) {
   if (!("r-omnideconv" %in% reticulate::conda_list()$name)) {
-    reticulate::conda_create(envname = "r-omnideconv")
+    reticulate::conda_create(envname = "r-omnideconv", python_version = 3.8)
   }
 
+  # locate the environment path
   paths <- reticulate::conda_list()
-  path <- paths[paths$name == "r-omnideconv", 2]
+  path <- paths[paths$name == "r-omnideconv", 2][[1]]
+
+
+  # Normalize and adjust the path for windows if necessary
   if (.Platform$OS.type == "windows") {
-    path <- gsub("\\\\", "/", path)
+    # Transform the path for Windows and ensure it is valid
+    path.bin <- gsub("/envs/r-omnideconv/python.exe$", "/Library/bin", path, fixed = TRUE)
+    path.bin <- normalizePath(path.bin, winslash = "/", mustWork = FALSE)
+
+    # for windows, the path separator needs to be adjusted
+    if (file.exists(path.bin)) {
+      separator <- ";"
+      Sys.setenv(PATH = paste(path.bin, Sys.getenv("PATH"), sep = separator))
+    } else {
+      warning("The transformed path for 'path.bin' does not exist: ", path.bin)
+    }
+  } else {
+    # on other platforms the path is separated with :
+    separator <- ":"
+    Sys.setenv(PATH = paste(path, Sys.getenv("PATH"), sep = separator))
   }
-  path.bin <- gsub("/envs/omnideconv/python.exe", "/library/bin", path)
-  Sys.setenv(PATH = paste(path.bin, Sys.getenv()["PATH"], sep = ";"))
+
+  # Set up reticulate and use the environemnt
   Sys.setenv(RETICULATE_PYTHON = path)
-
-
   reticulate::use_miniconda(condaenv = "r-omnideconv", required = TRUE)
   reticulate::py_config()
   reticulate::configure_environment(pkgname, force = TRUE)
 
+  # install necessary python packages if not available
   if (!reticulate::py_module_available("anndata")) {
     anndata::install_anndata()
-    # reticulate::py_install("anndata", pip = TRUE)
   }
 }

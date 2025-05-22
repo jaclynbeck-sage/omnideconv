@@ -26,7 +26,7 @@ jobs:
           # TODO devel currently fails because a dependency can't be installed. Hopefully this gets fixed.
           # - { os: ubuntu-latest, r: "devel", http-user-agent: "release" }
           - { os: ubuntu-22.04, r: "release" }
-          - { os: ubuntu-22.04, r: "oldrel-1" }
+          #- { os: ubuntu-22.04, r: "oldrel-1" }
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -35,7 +35,7 @@ jobs:
       CIBERSORTX_TOKEN: ${{ secrets.CIBERSORTX_TOKEN }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Update system dependencies
         # due to recent versions of GLIBC missing
@@ -43,6 +43,7 @@ jobs:
           sudo apt-get update && sudo apt-get install cmake libstdc++6 \
           libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev \
           libharfbuzz-dev libfribidi-dev \
+          pandoc pandoc-citeproc \
           libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev -y
 
       - uses: r-lib/actions/setup-pandoc@v2

@@ -7,25 +7,14 @@ NULL
 .onLoad <- function(libname, pkgname) {
   cli::cli_alert("checking omnideconv environment and dependencies")
 
-  # We ensure to have reticulate
-  if (!dir.exists(reticulate::miniconda_path())) {
-    message("Setting python version in miniconda to be 3.8")
-    Sys.setenv(RETICULATE_MINICONDA_PYTHON_VERSION = 3.8)
-    message("Setting up miniconda environment..")
-    suppressMessages(reticulate::install_miniconda())
-  }
-
-
   # We ensure to have the r-reticulate env
-  # if (!file.exists(reticulate::conda_python("r-reticulate"))) {
-  if (!("r-omnideconv" %in% reticulate::conda_list()$name)) {
-    reticulate::conda_create(envname = "r-omnideconv", python_version = 3.8)
+  if (!reticulate::virtualenv_exists(envname = "r-omnideconv")) {
+    reticulate::virtualenv_create(envname = "r-omnideconv") #, python_version = 3.8)
   }
 
   # locate the environment path
-  paths <- reticulate::conda_list()
-  path <- paths[paths$name == "r-omnideconv", 2][[1]]
-
+  path <- reticulate::virtualenv_python("r-omnideconv")
+  
 
   # Normalize and adjust the path for windows if necessary
   if (.Platform$OS.type == "windows") {
@@ -48,7 +37,7 @@ NULL
 
   # Set up reticulate and use the environemnt
   Sys.setenv(RETICULATE_PYTHON = path)
-  reticulate::use_miniconda(condaenv = "r-omnideconv", required = TRUE)
+  reticulate::use_virtualenv(virtualenv = "r-omnideconv", required = TRUE)
   reticulate::py_config()
   reticulate::configure_environment(pkgname, force = TRUE)
 

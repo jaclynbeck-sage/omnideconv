@@ -207,18 +207,11 @@ init_python <- function(python = NULL) {
   reticulate::py_config()
   if (!reticulate::py_available()) {
     if (is.null(python)) {
-      if (!dir.exists(reticulate::miniconda_path())) {
-        message("Setting python version in miniconda to be 3.8")
-        Sys.setenv(RETICULATE_MINICONDA_PYTHON_VERSION = 3.8)
-        message("Setting up miniconda environment..")
-        suppressMessages(reticulate::install_miniconda())
-      }
 
-      if (!("r-omnideconv" %in% reticulate::conda_list()$name)) {
-        reticulate::conda_create(envname = "r-omnideconv")
+      if (!reticulate::virtualenv_exists(envname = "r-omnideconv")) {
+        reticulate::virtualenv_create(envname = "r-omnideconv")
       }
-      paths <- reticulate::conda_list()
-      path <- paths[paths$name == "r-omnideconv", 2]
+      path <- reticulate::virtualenv_python("r-omnideconv")
       if (.Platform$OS.type == "windows") {
         path <- gsub("\\\\", "/", path)
       }
@@ -226,7 +219,7 @@ init_python <- function(python = NULL) {
       Sys.setenv(PATH = paste(path.bin, Sys.getenv()["PATH"], sep = ";"))
       Sys.setenv(RETICULATE_PYTHON = path)
 
-      reticulate::use_miniconda(condaenv = "r-omnideconv", required = TRUE)
+      reticulate::use_virtualenv(virtualenv = "r-omnideconv", required = TRUE)
       reticulate::py_config()
       reticulate::configure_environment(pkgname, force = TRUE)
     }
